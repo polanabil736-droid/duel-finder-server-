@@ -1,0 +1,30 @@
+const { WebSocketServer } = require('ws');
+const PORT = process.env.PORT || 3000;
+const wss = new WebSocketServer({ port: PORT });
+
+let queue = [];
+console.log(`🚀 Duel Finder Server running on port ${PORT}`);
+
+wss.on('connection', (ws) => {
+    ws.on('message', (message) => {
+        try {
+            const data = JSON.parse(message);
+            if (data.action === "find_match") {
+                ws.userData = { userId: data.userId, username: data.username };
+                queue.push(ws);
+                if (queue.length >= 2) {
+                    const p1 = queue.shift();
+                    const p2 = queue.shift();
+                    const matchData = { event: "match_found", matchId: `match_${Date.now()}` };
+                    p1.send(JSON.stringify({ ...matchData, opponent: p2.userData }));
+                    p2.send(JSON.stringify({ ...matchData, opponent: p1.userData }));
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    });
+    ws.on('close', () => {
+        queue = queue.filter(client => client !== ws);
+    });
+});
